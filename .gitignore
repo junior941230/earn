@@ -1,0 +1,20 @@
+# Secrets
+key.json
+.env
+*.pem
+*.pfx
+*.p12
+
+# Runtime files
+*.db
+*.sqlite
+*.sqlite3
+log/
+data/
+tests/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
