@@ -69,6 +69,15 @@ class Database:
         return True
 
     def add_watchlist_item(self, watchlist_id, symbol):
+        # 先檢查該 watchlist_id 是否存在
+        if not self.cursor.execute('SELECT id FROM watchlists WHERE id = ?', (watchlist_id,)).fetchone():
+            print(f"Watchlist ID '{watchlist_id}' does not exist.")
+            return False
+        # 再檢查該 symbol 是否已在該 watchlist 中
+        if self.cursor.execute('SELECT id FROM watchlist_items WHERE watchlist_id = ? AND symbol = ?', (watchlist_id, symbol)).fetchone():
+            print(
+                f"Symbol '{symbol}' already exists in watchlist ID '{watchlist_id}'.")
+            return False
         self.cursor.execute(
             'INSERT INTO watchlist_items (watchlist_id, symbol) VALUES (?, ?)', (watchlist_id, symbol))
         self.conn.commit()
@@ -89,6 +98,11 @@ class Database:
             'SELECT symbol FROM watchlist_items WHERE watchlist_id = ?', (watchlist_id,))
         return [row[0] for row in self.cursor.fetchall()]
 
+    def remove_watchlist(self, watchlist_id):
+        self.cursor.execute(
+            'DELETE FROM watchlists WHERE id = ?', (watchlist_id,))
+        self.conn.commit()
+
     def close(self):
         self.cursor.close()
         self.conn.close()
@@ -105,13 +119,5 @@ class Database:
 if __name__ == "__main__":
     db = Database("database/earn.db")
     db.initTables()
-    db.add_watchlist("test1")
-    db.add_watchlist("test2")
-    db.add_watchlist_item(1, "2330")
-    db.add_watchlist_item(1, "2454")
-    db.add_watchlist_item(2, "2317")
-    db.check()
-    print(db.get_watchlists())
-    print(db.get_watchlist_items(1))
-    print(db.get_watchlist_items(2))
+    db.remove_watchlist(len(db.get_watchlists()))  # 刪除最後一個清單（測試用）
     db.close()

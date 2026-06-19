@@ -110,15 +110,17 @@ class TargetCard(QFrame):
         if old_layout:
             while old_layout.count():
                 item = old_layout.takeAt(0)
-                if item.widget():
-                    item.widget().deleteLater()
+                if item.widget(): # type: ignore
+                    item.widget().deleteLater()  # type: ignore
         self._build_ui()
         self._apply_style()
 
 
 class watchlist(QFrame):
-    def __init__(self, watchlistName, parent=None):
+    def __init__(self, watchlistName, edit_callback, wl_id, parent=None):
         self.watchlistName = watchlistName
+        self.edit_callback = edit_callback
+        self.wl_id = wl_id
         super().__init__(parent)
         self._cards: dict[str, TargetCard] = {}
         self._build_ui()
@@ -140,14 +142,24 @@ class watchlist(QFrame):
         title.setFont(QFont('微軟正黑體', 10, QFont.Weight.Bold))
         title.setStyleSheet("color: #ccccff;")
 
+        self.btn_edit = QPushButton("✏️")
+        self.btn_edit.setObjectName("EditButton")
+        self.btn_edit.setFixedSize(22, 22)
+        self.btn_edit.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_edit.setToolTip("編輯清單")
+        self.btn_edit.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+
         self.lbl_count = QLabel("0 檔")
         self.lbl_count.setFont(QFont('微軟正黑體', 9))
         self.lbl_count.setStyleSheet("color: #888888;")
         self.lbl_count.setAlignment(
             Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
         )
+        self.btn_edit.clicked.connect(
+            lambda: self.edit_callback(self.wl_id))
 
         h_layout.addWidget(title)
+        h_layout.addWidget(self.btn_edit)
         h_layout.addStretch()
         h_layout.addWidget(self.lbl_count)
 
@@ -189,6 +201,22 @@ class watchlist(QFrame):
                 border: none;
                 border-bottom: 1px solid #2e2e4e;
                 border-radius: 0px;
+            }
+            QFrame#TargetListWidget QPushButton#EditButton {
+                background-color: transparent;
+                border: none;
+                color: #aaaaff;
+                font-size: 14px;
+                font-weight: bold;
+                padding: 0px;
+            }
+            QFrame#TargetListWidget QPushButton#EditButton:hover {
+                color: #ffffff;
+                background-color: #35355a;
+                border-radius: 11px;
+            }
+            QFrame#TargetListWidget QPushButton#EditButton:pressed {
+                background-color: #5555aa;
             }
             QScrollArea {
                 background-color: #13131f;

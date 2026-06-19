@@ -199,7 +199,8 @@ if __name__ == "__main__":
     fubon_client.connect()
     market_data_service = MarketDataService(fubon_client)
     try:
-        market_data_service.WebSocketSubscribe(channel="ticker", symbol="2330")
+        data = market_data_service.ApiSnapshotQuote("OTC")
+        print(data)
         wait_for_shutdown()
     finally:
         market_data_service.disconnect()

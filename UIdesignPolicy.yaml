@@ -1,0 +1,50 @@
+UI STYLE SPEC — Dark Finance Terminal (PyQt6)
+
+PALETTE
+  bg_deep:       #13131f   (outer container)
+  bg_card:       #1e1e2e   (card default)
+  bg_card_hover: #2a2a3e
+  bg_header:     #13131f
+  border_idle:   #2e2e4e
+  border_active: #4444aa
+  border_hover:  #5555aa
+  accent_title:  #ccccff
+  accent_btn:    #aaaaff
+  text_sub:      #888888
+  text_muted:    #999999
+  up_color:      #e74c3c   (Taiwan convention: up=red)
+  down_color:    #2ecc71   (down=green)
+
+TYPOGRAPHY
+  font_family: 微軟正黑體
+  name:    11pt bold
+  price:   13pt bold
+  change:   9pt bold
+  symbol:   9pt  color=text_sub
+  volume:   8pt  color=text_muted
+  title:   10pt bold color=accent_title
+
+LAYOUT
+  watchlist_max_w: 300px
+  watchlist_max_h: 500px
+  card_h:          90px
+  card_padding:    12 8 12 8
+  card_spacing:    6px
+  card_radius:     8px
+  container_radius:12px
+  header_h:        30px
+  header_border_bottom: 1px solid border_idle
+
+CARD STRUCTURE (per row)
+  row1_left:  [name bold] [symbol muted]
+  row1_right: [change±%] [closePrice]   — both colored by up/down_color
+  row2_left:  [量 tradeVolume]           — muted
+
+INTERACTIONS
+  card_hover:    bg→bg_card_hover, border→border_hover
+  btn_default:   transparent, no border
+  btn_hover:     bg=#35355a, border-radius=11px
+  btn_pressed:   bg=#5555aa
+  scrollbar_w:   6px, radius=3px, handle=#4444aa, track=#1a1a2e
+
+TONE: professional trading tool, information-dense, no decorative elements
