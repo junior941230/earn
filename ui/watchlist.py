@@ -11,13 +11,13 @@ class TargetCard(QFrame):
     """
     單一標的的資訊卡片
     data = {
-        'name'       : '台積電',
-        'code'       : '2330',
-        'price'      : 950.0,
-        'change'     : 12.5,
-        'change_pct' : 1.33,
-        'volume'     : '125,430',
-        'extra'      : '半導體'
+        'name'                  : '台積電',
+        'symbol'                : '2330',
+        'closePrice'        : 950.0,
+        'change'                : 12.5,
+        'changePercent'         : 1.33,
+        "total" {'tradeVolume'  : '125,430'},
+        'extra'                 : '半導體'
     }
     """
 
@@ -43,20 +43,19 @@ class TargetCard(QFrame):
 
         self.lbl_name = QLabel(self.data.get('name', '--'))
         self.lbl_name.setFont(QFont('微軟正黑體', 11, QFont.Weight.Bold))
-        
 
-        self.lbl_code = QLabel(self.data.get('code', '--'))
-        self.lbl_code.setFont(QFont('微軟正黑體', 9))
-        self.lbl_code.setStyleSheet("color: #888888;")
+        self.lbl_symbol = QLabel(self.data.get('symbol', '--'))
+        self.lbl_symbol.setFont(QFont('微軟正黑體', 9))
+        self.lbl_symbol.setStyleSheet("color: #888888;")
 
-        self.lbl_price = QLabel(f"{self.data.get('price', 0):.2f}")
+        self.lbl_price = QLabel(f"{self.data.get('closePrice', 0):.2f}")
         self.lbl_price.setFont(QFont('微軟正黑體', 13, QFont.Weight.Bold))
         self.lbl_price.setAlignment(
             Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
         )
 
         change = self.data.get('change', 0)
-        change_pct = self.data.get('change_pct', 0)
+        change_pct = self.data.get('changePercent', 0)
         sign = '+' if change >= 0 else ''
         change_str = f"{sign}{change:.2f}  ({sign}{change_pct:.2f}%)"
 
@@ -72,13 +71,13 @@ class TargetCard(QFrame):
         self.lbl_price.setStyleSheet(f"color: {color};")
 
         top_row.addWidget(self.lbl_name)
-        top_row.addWidget(self.lbl_code)
+        top_row.addWidget(self.lbl_symbol)
         top_row.addStretch()
         top_row.addWidget(self.lbl_change)
         top_row.addWidget(self.lbl_price)
 
         # ── 第二行：成交量 ──
-        vol_text = f"量  {self.data.get('volume', '--')}"
+        vol_text = f"量  {self.data.get('total', {}).get('tradeVolume', '--')}"
         self.lbl_vol = QLabel(vol_text)
         self.lbl_vol.setFont(QFont('微軟正黑體', 8))
         self.lbl_vol.setStyleSheet("color: #999999;")
@@ -132,7 +131,7 @@ class watchlist(QFrame):
 
         # ── 標題列 ──
         header = QFrame()
-        header.setFixedHeight(44)
+        header.setFixedHeight(30)
         header.setObjectName("Header")
         h_layout = QHBoxLayout(header)
         h_layout.setContentsMargins(12, 0, 12, 0)
@@ -174,6 +173,8 @@ class watchlist(QFrame):
 
         outer_layout.addWidget(header)
         outer_layout.addWidget(self.scrollBar)
+        self.setMaximumWidth(300)  # 限制最大寬度，讓 UI 看起來更緊湊
+        self.setMaximumHeight(500)  # 限制最大高度，避免過長的清單占滿整個視窗
 
     def _apply_style(self):
         self.setObjectName("TargetListWidget")
@@ -214,20 +215,20 @@ class watchlist(QFrame):
 
     def add_target(self, data: dict):
         """新增標的；若代號已存在則更新資料"""
-        code = data.get('code', '')
-        if code in self._cards:
-            self._cards[code].refresh(data)
+        symbol = data.get('symbol', '')
+        if symbol in self._cards:
+            self._cards[symbol].refresh(data)
         else:
             card = TargetCard(data)
-            self._cards[code] = card
+            self._cards[symbol] = card
             idx = self.card_layout.count() - 1   # stretch 前插入
             self.card_layout.insertWidget(idx, card)
             self._update_count()
 
-    def remove_target(self, code: str):
+    def remove_target(self, symbol: str):
         """移除指定代號的標的卡片"""
-        if code in self._cards:
-            card = self._cards.pop(code)
+        if symbol in self._cards:
+            card = self._cards.pop(symbol)
             self.card_layout.removeWidget(card)
             card.deleteLater()
             self._update_count()
@@ -249,20 +250,20 @@ if __name__ == "__main__":
     watchlist_widget = watchlist("Test Watchlist")
     watchlist_widget.add_target({
         'name': '台積電',
-        'code': '2330',
-        'price': 950.0,
+        'symbol': '2330',
+        'closePrice': 950.0,
         'change': 12.5,
-        'change_pct': 1.33,
-        'volume': '125,430',
+        'changePercent': 1.33,
+        'tradeVolume': '125,430',
         'extra': '半導體'
     })
     watchlist_widget.add_target({
         'name': '聯發科',
-        'code': '2454',
-        'price': 600.0,
+        'symbol': '2454',
+        'closePrice': 600.0,
         'change': -5.0,
-        'change_pct': -0.83,
-        'volume': '98,210',
+        'changePercent': -0.83,
+        'tradeVolume': '98,210',
         'extra': 'IC 設計'
     })
     watchlist_widget.show()

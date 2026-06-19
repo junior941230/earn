@@ -1,2 +1,12 @@
-# 檔案用途：程式入口；之後放 PyQt app 啟動與主視窗建立。
+import sys
+from PyQt6.QtWidgets import QApplication
+from controller.mainwindow_controller import MainWindowController
 
+
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+
+    window = MainWindowController()
+    window.show()
+
+    sys.exit(app.exec())

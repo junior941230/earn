@@ -3,7 +3,7 @@ import sqlite3
 
 
 class Database:
-    def __init__(self, db_path):
+    def __init__(self, db_path="database/earn.db"):
         self.conn = sqlite3.connect(db_path)
         self.cursor = self.conn.cursor()
 
@@ -59,9 +59,14 @@ class Database:
         self.conn.commit()
 
     def add_watchlist(self, name):
+        # 尋找有無重複名稱
+        if self.cursor.execute('SELECT id FROM watchlists WHERE name = ?', (name,)).fetchone():
+            print(f"Watchlist '{name}' already exists.")
+            return False
         self.cursor.execute(
             'INSERT INTO watchlists (name) VALUES (?)', (name,))
         self.conn.commit()
+        return True
 
     def add_watchlist_item(self, watchlist_id, symbol):
         self.cursor.execute(
@@ -78,6 +83,11 @@ class Database:
     def get_watchlists(self):
         self.cursor.execute('SELECT * FROM watchlists')
         return self.cursor.fetchall()
+
+    def get_watchlist_items(self, watchlist_id):
+        self.cursor.execute(
+            'SELECT symbol FROM watchlist_items WHERE watchlist_id = ?', (watchlist_id,))
+        return [row[0] for row in self.cursor.fetchall()]
 
     def close(self):
         self.cursor.close()
@@ -97,6 +107,11 @@ if __name__ == "__main__":
     db.initTables()
     db.add_watchlist("test1")
     db.add_watchlist("test2")
+    db.add_watchlist_item(1, "2330")
+    db.add_watchlist_item(1, "2454")
+    db.add_watchlist_item(2, "2317")
     db.check()
     print(db.get_watchlists())
+    print(db.get_watchlist_items(1))
+    print(db.get_watchlist_items(2))
     db.close()

@@ -31,6 +31,7 @@ class MarketDataService:
         self._is_websocket_connected = True
 
     def ApiGetIntradayTickers(self, exchange):
+        """股票或指數列表（依條件查詢）"""
         try:
             return self.reststock.intraday.tickers(type='EQUITY', exchange=exchange, isNormal=True, isAttention=True, isDisposition=True)
         except FugleAPIError as e:
@@ -38,6 +39,7 @@ class MarketDataService:
             return None
 
     def ApiGetIntradayTicker(self, symbol):
+        """取得股票資訊 (依股票代碼查詢)"""
         try:
             return self.reststock.intraday.ticker(symbol=symbol)
         except FugleAPIError as e:
@@ -45,6 +47,7 @@ class MarketDataService:
             return None
 
     def ApiGetIntradayQuote(self, symbol):
+        """股票即時報價（依代碼查詢）"""
         try:
             return self.reststock.intraday.quote(symbol=symbol)
         except FugleAPIError as e:
@@ -52,6 +55,7 @@ class MarketDataService:
             return None
 
     def ApiGetIntradayCandles(self, symbol):
+        """股票價格Ｋ線（依代碼查詢）"""
         try:
             return self.reststock.intraday.candles(symbol=symbol)
         except FugleAPIError as e:
@@ -59,6 +63,7 @@ class MarketDataService:
             return None
 
     def ApiGetIntradayTrades(self, symbol):
+        """股票成交明細（依代碼查詢）"""
         try:
             return self.reststock.intraday.trades(symbol=symbol)
         except FugleAPIError as e:
@@ -66,6 +71,7 @@ class MarketDataService:
             return None
 
     def ApiGetIntradayVolumes(self, symbol):
+        """股票分價量表（依代碼查詢）"""
         try:
             return self.reststock.intraday.volumes(symbol=symbol)
         except FugleAPIError as e:
@@ -73,6 +79,7 @@ class MarketDataService:
             return None
 
     def ApiSnapshotQuote(self, market):
+        """股票行情快照（依市場別）"""
         try:
             return self.reststock.snapshot.quotes(market=market)
         except FugleAPIError as e:
@@ -80,6 +87,7 @@ class MarketDataService:
             return None
 
     def ApiSnapshotMovers(self, market, direction='up', change='percent'):
+        """股票漲跌幅排行（依市場別）"""
         try:
             return self.reststock.snapshot.movers(market=market, direction=direction, change=change)
         except FugleAPIError as e:
@@ -87,6 +95,7 @@ class MarketDataService:
             return None
 
     def ApiSnapshotActives(self, market, trade='value'):
+        """股票成交量值排行（依市場別）"""
         try:
             return self.reststock.snapshot.actives(market=market, trade=trade)
         except FugleAPIError as e:
@@ -94,6 +103,7 @@ class MarketDataService:
             return None
 
     def ApiGetHistoricalCandles(self, symbol, start_date, end_date):
+        """取得 1 年內的上市櫃歷史股價（依代碼查詢），個股資料區間最遠可回溯至 2010 年，指數部分最遠可回溯至 2015 年！"""
         request = {"symbol": symbol, "from": start_date, "to": end_date}
         try:
             return self.reststock.historical.candles(**request)
@@ -102,6 +112,7 @@ class MarketDataService:
             return None
 
     def ApiGetHistoricalStats(self, symbol):
+        """取得近 52 週股價數據（依代碼查詢）"""
         try:
             return self.reststock.historical.stats(symbol=symbol)
         except FugleAPIError as e:
@@ -188,8 +199,7 @@ if __name__ == "__main__":
     fubon_client.connect()
     market_data_service = MarketDataService(fubon_client)
     try:
-        market_data_service.WebSocketSubscribe(
-            channel='stock', symbol='2330')
+        market_data_service.WebSocketSubscribe(channel="ticker", symbol="2330")
         wait_for_shutdown()
     finally:
         market_data_service.disconnect()
