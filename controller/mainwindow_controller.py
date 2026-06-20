@@ -4,6 +4,7 @@ from database.database import Database
 from service.fubon_client import FubonClient
 from service.market_data import MarketDataService
 from controller.watchlist_controller import WatchlistController
+from PyQt6.QtGui import QIcon
 
 
 class MainWindowController(QMainWindow):
@@ -11,6 +12,7 @@ class MainWindowController(QMainWindow):
         super().__init__()
 
         self.db = Database()
+        self.db.initTables()
         self.fubon_client = FubonClient()
         self.fubon_client.connect()
         self.market_data_service = MarketDataService(self.fubon_client)
@@ -31,6 +33,10 @@ class MainWindowController(QMainWindow):
         # self.smart_controller = SmartController(self.ui.smartTab)
         # self.strong_trade_controller = StrongTradeController(self.ui.strongTradeTab)
         # self.chart_controller = ChartController(self.ui.chartTab)
+
+        self.setWindowTitle("earn")
+        icon = QIcon("ui/icon.png")  # 替換為你的圖標路徑
+        self.setWindowIcon(icon)
 
     def generateAllMarketData(self):
         OTC_data = self.market_data_service.ApiSnapshotQuote("OTC")

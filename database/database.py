@@ -13,7 +13,8 @@ class Database:
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS watchlists (
                 id      INTEGER PRIMARY KEY AUTOINCREMENT,
-                name    TEXT NOT NULL UNIQUE
+                name    TEXT NOT NULL UNIQUE,
+                sortOrder   INTEGER NOT NULL
             )
         ''')
 
@@ -60,13 +61,16 @@ class Database:
 
     def add_watchlist(self, name):
         # 尋找有無重複名稱
+        sortOrder = self.cursor.execute(
+            'SELECT COUNT(*) FROM watchlists').fetchone()[0]
         if self.cursor.execute('SELECT id FROM watchlists WHERE name = ?', (name,)).fetchone():
             print(f"Watchlist '{name}' already exists.")
             return False
         self.cursor.execute(
-            'INSERT INTO watchlists (name) VALUES (?)', (name,))
+            'INSERT INTO watchlists (name, sortOrder) VALUES (?, ?)', (name, sortOrder))
         self.conn.commit()
-        return True
+        # 回傳新建立的 watchlist 的 ID
+        return self.cursor.lastrowid
 
     def add_watchlist_item(self, watchlist_id, symbol):
         # 先檢查該 watchlist_id 是否存在
@@ -93,14 +97,35 @@ class Database:
         self.cursor.execute('SELECT * FROM watchlists')
         return self.cursor.fetchall()
 
+    def get_watchlistName(self, watchlist_id):
+        self.cursor.execute(
+            'SELECT name FROM watchlists WHERE id = ?', (watchlist_id,))
+        result = self.cursor.fetchone()
+        return result[0] if result else None
+
     def get_watchlist_items(self, watchlist_id):
         self.cursor.execute(
             'SELECT symbol FROM watchlist_items WHERE watchlist_id = ?', (watchlist_id,))
         return [row[0] for row in self.cursor.fetchall()]
 
+    def rename_watchlist(self, watchlist_id, new_name):
+        # 檢查新名稱是否已存在
+        if self.cursor.execute('SELECT id FROM watchlists WHERE name = ?', (new_name,)).fetchone():
+            print(f"Watchlist name '{new_name}' already exists.")
+            return False
+        self.cursor.execute(
+            'UPDATE watchlists SET name = ? WHERE id = ?', (new_name, watchlist_id))
+        self.conn.commit()
+        return True
+
     def remove_watchlist(self, watchlist_id):
         self.cursor.execute(
             'DELETE FROM watchlists WHERE id = ?', (watchlist_id,))
+        self.conn.commit()
+
+    def remove_watchlist_item(self, watchlist_id, symbol):
+        self.cursor.execute(
+            'DELETE FROM watchlist_items WHERE watchlist_id = ? AND symbol = ?', (watchlist_id, symbol))
         self.conn.commit()
 
     def close(self):
@@ -119,5 +144,7 @@ class Database:
 if __name__ == "__main__":
     db = Database("database/earn.db")
     db.initTables()
-    db.remove_watchlist(len(db.get_watchlists()))  # 刪除最後一個清單（測試用）
+    db.add_watchlist("Tech Stocks")
+    watchlist_names = db.get_watchlists()
+    print("Existing watchlists:", watchlist_names)
     db.close()

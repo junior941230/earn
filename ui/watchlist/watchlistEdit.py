@@ -6,16 +6,21 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QFont
-
-
+from database.database import Database
+from PyQt6.QtWidgets import QMessageBox
 # ── 單一標的卡片 ──────────────────────────────────────────
-class ItemRow(QFrame):
-    add_clicked = pyqtSignal(str, str)  # name, symbol
 
-    def __init__(self, data: dict, parent=None):
+
+class ItemRow(QFrame):
+    # name, symbol, watchlist_id, isExists
+    add_clicked = pyqtSignal(str, str, int, bool)
+
+    def __init__(self, data: dict, watchlist_id: int, isExists: bool, parent=None):
         super().__init__(parent)
         self.name = data.get("name", "")
         self.symbol = data.get("symbol", "")
+        self.watchlist_id = watchlist_id
+        self.isExists = isExists
         self._build_ui(data)
         self.setObjectName("itemRow")
         self.setFixedHeight(50)
@@ -30,12 +35,18 @@ class ItemRow(QFrame):
         outer.setSpacing(8)
 
         # ── + 按鈕 ──
-        self.btn_add = QPushButton("+")
+        if self.isExists:
+            self.btn_add = QPushButton("-")
+            # 背景填滿紅色
+            self.btn_add.setStyleSheet(
+                "background-color: #ff5555; color: white; border: none; border-radius: 11px; font-size: 16px; font-weight: bold;")
+        else:
+            self.btn_add = QPushButton("+")
         self.btn_add.setFixedSize(22, 22)
         self.btn_add.setObjectName("btnAdd")
         self.btn_add.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_add.clicked.connect(
-            lambda: self.add_clicked.emit(self.name, self.symbol))
+            lambda: self.add_clicked.emit(self.name, self.symbol, self.watchlist_id, self.isExists))
 
         # ── 內容區 ──
 
@@ -80,10 +91,12 @@ class ItemRow(QFrame):
 class WatchListEditDialog(QDialog):
     MAX_VISIBLE_ITEMS = 200
 
-    def __init__(self, items: dict, onAddCallback, parent=None):
+    def __init__(self, items: dict, onAddCallback, watchlist_id: int, db: Database, parent=None):
         super().__init__(parent)
         self.items = items
         self.onAddCallback = onAddCallback
+        self.watchlist_id = watchlist_id
+        self.db = db
         self.item_values = list(items.values()) if isinstance(
             items, dict) else list(items)
         self.search_items = [
@@ -94,6 +107,7 @@ class WatchListEditDialog(QDialog):
             for item in self.item_values
             if isinstance(item, dict)
         ]
+
         self.search_timer = QTimer(self)
         self.search_timer.setSingleShot(True)
         self.search_timer.setInterval(120)
@@ -105,6 +119,8 @@ class WatchListEditDialog(QDialog):
             Qt.WindowType.FramelessWindowHint
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+
+        self._refreshDB()  # 初始化 watchlistItems
         self._build_ui()
         self._apply_stylesheet()
 
@@ -139,26 +155,56 @@ class WatchListEditDialog(QDialog):
         btn_close.setObjectName("btnClose")
         btn_close.setFixedSize(22, 22)
         btn_close.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_close.clicked.connect(self.reject)
+        btn_close.clicked.connect(self.accept)
 
         header_layout.addWidget(lbl_title)
         header_layout.addStretch()
         header_layout.addWidget(btn_close)
         container_layout.addWidget(header)
 
-        # ── 搜尋欄 ──
-        search_wrap = QFrame()
-        search_wrap.setObjectName("searchWrap")
-        sw_layout = QHBoxLayout(search_wrap)
-        sw_layout.setContentsMargins(10, 8, 10, 8)
+        wrap = QFrame()
+        wrap.setObjectName("wrap")
+        main_layout = QVBoxLayout(wrap)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        # 重新命名欄
+        self.titleEdit = QLineEdit()
+        self.titleEdit.setText(self.watchlistName)
+        self.titleEdit.setFixedHeight(30)
+        self.titleEdit.setObjectName("titleEdit")
+        self.titleEdit.returnPressed.connect(self.reject)
 
+        # 刪除按鈕
+        self.btn_delete = QPushButton("刪除清單")
+        self.btn_delete.setFixedSize(80, 40)
+        self.btn_delete.setObjectName("btnDelete")
+        self.btn_delete.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_delete.clicked.connect(self._delete_watchlist)
+        title_layout = QHBoxLayout()
+        title_layout.setContentsMargins(10, 8, 10, 0)
+        title_layout.addWidget(self.titleEdit)
+        title_layout.addWidget(self.btn_delete)
+
+        # ── 搜尋欄 ──
         self.search_box = QLineEdit()
         self.search_box.setPlaceholderText("搜尋代號 / 名稱…")
         self.search_box.setFixedHeight(30)
         self.search_box.setObjectName("searchBox")
         self.search_box.textChanged.connect(self._queue_search)
+
+        sw_layout = QHBoxLayout()
+        sw_layout.setContentsMargins(10, 0, 10, 8)
         sw_layout.addWidget(self.search_box)
-        container_layout.addWidget(search_wrap)
+        main_layout.addLayout(title_layout)
+        # ── 分隔線 ──
+        separator = QFrame()
+        separator.setObjectName("separator")
+        separator.setFrameShape(QFrame.Shape.HLine)
+        separator.setFrameShadow(QFrame.Shadow.Sunken)
+        separator.setFixedHeight(1)
+        main_layout.addWidget(separator)
+
+        main_layout.addLayout(sw_layout)
+        container_layout.addWidget(wrap)
 
         # ── 列表 ──
         self.scrollbar = QScrollArea()
@@ -179,7 +225,13 @@ class WatchListEditDialog(QDialog):
         container_layout.addWidget(self.scrollbar)
         self._populate(self.item_values)
 
+    def _refreshDB(self):
+        """重新載入 watchlistItems"""
+        self.watchlistItems = self.db.get_watchlist_items(self.watchlist_id)
+        self.watchlistName = self.db.get_watchlistName(self.watchlist_id)
+
     def _populate(self, items: list[dict]):
+        """根據提供的 items 列表，更新列表區域的內容"""
         self.list_container.setUpdatesEnabled(False)
 
         while self.list_layout.count() > 1:
@@ -190,8 +242,11 @@ class WatchListEditDialog(QDialog):
         for data in list(items)[:self.MAX_VISIBLE_ITEMS]:
             if not isinstance(data, dict):
                 continue
-            row = ItemRow(data)
+            isExists = data.get("symbol") in self.watchlistItems
+            row = ItemRow(data, self.watchlist_id, isExists)
             row.add_clicked.connect(self.onAddCallback)
+            row.add_clicked.connect(self._refreshDB)  # 點擊 + 或 - 後，重新套用搜尋結果
+            row.add_clicked.connect(self._apply_search)  # 點擊 + 或 - 後，重新套用搜尋結果
             self.list_layout.insertWidget(
                 self.list_layout.count() - 1, row
             )
@@ -203,11 +258,23 @@ class WatchListEditDialog(QDialog):
 
     def _apply_search(self):
         kw = self.search_box.text().strip().lower()
-        filtered = [
-            item for item, searchable_text in self.search_items
-            if kw in searchable_text
-        ] if kw else self.item_values
+        filtered = []
+        for item, searchable_text in self.search_items:
+            if kw in searchable_text:
+                filtered.append(item)
+
         self._populate(filtered)
+
+    def _delete_watchlist(self):
+        # 先跳出確認視窗
+        reply = QMessageBox.question(
+            self, '確認刪除', f"確定要刪除清單「{self.watchlistName}」嗎？", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if reply == QMessageBox.StandardButton.Yes:
+            self._refreshDB()  # 確保 watchlistItems 是最新的
+            for symbol in self.watchlistItems:
+                self.db.remove_watchlist_item(self.watchlist_id, symbol)
+            self.db.remove_watchlist(self.watchlist_id)
+            self.accept()  # 關閉對話框
 
     def _apply_stylesheet(self):
         self.setStyleSheet("""
@@ -230,6 +297,42 @@ class WatchListEditDialog(QDialog):
                 background: transparent;
             }
 
+            /* ── 命名區塊 ── */
+            QLineEdit#titleEdit {
+                background-color: #13131f;
+                border: 1px solid #2e2e4e;
+                border-radius: 6px;
+                color: #ccccff;
+                padding: 0 10px;
+                font-family: 微軟正黑體;
+                font-size: 11px;
+                selection-background-color: #4444aa;
+            }
+            QLineEdit#titleEdit:focus {
+                border-color: #4444aa;
+            }
+            QLineEdit#titleEdit::placeholder {
+                color: #555577;
+            }
+
+            /* ── 刪除按鈕(紅色) ── */
+            QPushButton#btnDelete {
+                background-color: #ff5555;
+                border: 1px solid #2e2e4e;
+                border-radius: 6px;
+                font-size: 11px;
+            }
+            QPushButton#btnDelete:hover {
+                background-color: #2a2a3e;
+            }
+
+            /* ── 分隔線 ── */
+            QFrame#separator {
+                background-color: #2e2e4e;
+                border: none;
+                max-height: 1px;
+            }
+
             /* ── 搜尋區塊 ── */
             QFrame#searchWrap {
                 background-color: #1e1e2e;
@@ -250,7 +353,7 @@ class WatchListEditDialog(QDialog):
             QLineEdit#searchBox::placeholder {
                 color: #555577;
             }
-
+            
             /* ── 列表背景 ── */
             QWidget#listContainer {
                 background-color: #1e1e2e;
@@ -347,6 +450,22 @@ class WatchListEditDialog(QDialog):
     def mouseMoveEvent(self, event):
         if event.buttons() == Qt.MouseButton.LeftButton and hasattr(self, '_drag_pos'):
             self.move(event.globalPosition().toPoint() - self._drag_pos)
+
+    # 視窗關閉
+    def done(self, result):
+        if result == QDialog.DialogCode.Accepted:
+            super().done(result)
+        newName = self.titleEdit.text()
+        if newName == "新增清單":
+            QMessageBox.warning(
+                self, "不可用的名稱", "清單名稱不能是「新增清單」，請重新輸入。")
+            return  # 不關閉視窗，讓使用者重新輸入名稱
+        if newName != self.watchlistName:
+            if not self.db.rename_watchlist(self.watchlist_id, newName):
+                QMessageBox.warning(
+                    self, "命名衝突", f"無法將清單命名為「{newName}」，因為已存在同名的清單。")
+                return  # 不關閉視窗，讓使用者重新輸入名稱
+        super().done(result)
 
 
 # ── 範例資料 ─────────────────────────────────────────────
