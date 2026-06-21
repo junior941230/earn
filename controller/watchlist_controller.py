@@ -35,6 +35,9 @@ class WatchlistController:
         else:
             self.db.add_watchlist_item(watchlist_id, symbol)
 
+    def onReorderCallback(self, watchlist_id: int, symbols: list[str]):
+        self.db.set_watchlist_item_order(watchlist_id, symbols)
+
     def onAddWatchlistCallback(self):
         """處理新增 watchlist 的回調函數"""
         watchlist_id = self.db.add_watchlist("新增清單")
@@ -55,6 +58,7 @@ class WatchlistController:
             wl_id, wl_name, wl_sortOrder = watchlists[i]  # 取得清單 id 與名稱
             self.watchlistGroups[wl_id] = watchlist(
                 wl_name, self.edit_watchlistCallback, wl_id)  # 建立 watchlist UI 元件
+            self.watchlistGroups[wl_id].reorder_callback = self.onReorderCallback
             for symbol in self.db.get_watchlist_items(wl_id):
                 symboldata = self.market_data_service.ApiGetIntradayQuote(
                     symbol)  # 取得即時資料

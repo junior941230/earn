@@ -3,8 +3,8 @@ from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QScrollArea, QFrame, QPushButton, QSizePolicy
 )
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFont, QColor, QPainter, QPen, QColor
+from PyQt6.QtCore import Qt, QMimeData, pyqtSignal
+from PyQt6.QtGui import QFont, QColor, QPainter, QPen, QColor, QDrag
 
 
 class CircleAddButton(QPushButton):
@@ -62,9 +62,11 @@ class TargetCard(QFrame):
     def __init__(self, data: dict, parent=None):
         super().__init__(parent)
         self.data = data
+        self._drag_start_pos = None
         self._build_ui()
         self._apply_style()
         self.setMaximumWidth(280)  # 限制卡片最大寬度，讓 UI 看起來更緊湊
+
 
     def _build_ui(self):
         self.setFixedHeight(50)
@@ -157,12 +159,92 @@ class TargetCard(QFrame):
         self._build_ui()
         self._apply_style()
 
+    def updateWebSocketData(self, data: dict):
+        """更新即時資料"""
+        self.lbl_price.setText(f"{self.data.get('closePrice', 0):.2f}")
+
+        change = self.data.get('change', 0)
+        change_pct = self.data.get('changePercent', 0)
+        sign = '+' if change >= 0 else ''
+        change_str = f"{sign}{change:.2f}  ({sign}{change_pct:.2f}%)"
+
+        self.lbl_change.setText(change_str)
+
+        # 漲跌顏色（台股：漲紅跌綠）
+        color = "#e74c3c" if change >= 0 else "#2ecc71"
+        self.lbl_change.setStyleSheet(f"color: {color};")
+        self.lbl_price.setStyleSheet(f"color: {color};")
+
+    """event"""
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._drag_start_pos = event.position().toPoint()
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        if (
+            not event.buttons() & Qt.MouseButton.LeftButton
+            or self._drag_start_pos is None
+            or (event.position().toPoint() - self._drag_start_pos).manhattanLength()
+            < QApplication.startDragDistance()
+        ):
+            super().mouseMoveEvent(event)
+            return
+
+        symbol = self.data.get("symbol", "")
+        if not symbol:
+            return
+
+        mime_data = QMimeData()
+        mime_data.setData("application/x-watchlist-target-card", symbol.encode())
+        drag = QDrag(self)
+        drag.setMimeData(mime_data)
+        drag.setPixmap(self.grab())
+        drag.setHotSpot(event.position().toPoint())
+        drag.exec(Qt.DropAction.MoveAction)
+        self._drag_start_pos = None
+
+
+class CardContainer(QWidget):
+    """Receives a TargetCard drop and reports its vertical drop position."""
+
+    card_dropped = pyqtSignal(str, int)
+    MIME_TYPE = "application/x-watchlist-target-card"
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setAcceptDrops(True)
+
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasFormat(self.MIME_TYPE):
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dragMoveEvent(self, event):
+        if event.mimeData().hasFormat(self.MIME_TYPE):
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dropEvent(self, event):
+        if not event.mimeData().hasFormat(self.MIME_TYPE):
+            event.ignore()
+            return
+
+        symbol = bytes(event.mimeData().data(self.MIME_TYPE)).decode()
+        self.card_dropped.emit(symbol, event.position().toPoint().y())
+        event.acceptProposedAction()
+
+
 
 class watchlist(QFrame):
-    def __init__(self, watchlistName, edit_callback, wl_id, parent=None):
+    def __init__(self, watchlistName, edit_callback, wl_id, reorder_callback=None, parent=None):
         self.watchlistName = watchlistName
         self.edit_callback = edit_callback
         self.wl_id = wl_id
+        self.reorder_callback = reorder_callback
         super().__init__(parent)
         self._cards: dict[str, TargetCard] = {}
         self._build_ui()
@@ -219,8 +301,9 @@ class watchlist(QFrame):
         self.scrollBar.setFrameShape(QFrame.Shape.NoFrame)
 
         # 卡片容器
-        self.container = QWidget()
+        self.container = CardContainer()
         self.container.setObjectName("WatchlistContainer")
+        self.container.card_dropped.connect(self._move_card)
         self.card_layout = QVBoxLayout(self.container)
         self.card_layout.setContentsMargins(8, 8, 8, 8)
         self.card_layout.setSpacing(6)
@@ -315,6 +398,43 @@ class watchlist(QFrame):
             card.deleteLater()
         self._cards.clear()
         self._update_count()
+
+    def _move_card(self, symbol: str, drop_y: int):
+        """Move a card before the card under the drop position."""
+        card = self._cards.get(symbol)
+        if card is None:
+            return
+
+        cards = [
+            self.card_layout.itemAt(index).widget()
+            for index in range(self.card_layout.count() - 1)
+        ]
+        cards = [item for item in cards if isinstance(item, TargetCard)]
+        current_index = cards.index(card)
+        target_index = len(cards)
+        for index, target_card in enumerate(cards):
+            if drop_y < target_card.geometry().center().y():
+                target_index = index
+                break
+
+        if current_index < target_index:
+            target_index -= 1
+        if current_index == target_index:
+            return
+
+        self.card_layout.removeWidget(card)
+        self.card_layout.insertWidget(target_index, card)
+
+        if self.reorder_callback:
+            self.reorder_callback(self.wl_id, self._ordered_symbols())
+
+    def _ordered_symbols(self) -> list[str]:
+        symbols = []
+        for index in range(self.card_layout.count() - 1):
+            card = self.card_layout.itemAt(index).widget()
+            if isinstance(card, TargetCard):
+                symbols.append(card.data.get("symbol", ""))
+        return symbols
 
     def _update_count(self):
         self.lbl_count.setText(f"{len(self._cards)} 檔")

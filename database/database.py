@@ -24,11 +24,26 @@ class Database:
                 id           INTEGER PRIMARY KEY AUTOINCREMENT,
                 watchlist_id INTEGER NOT NULL,
                 symbol       TEXT    NOT NULL,
+                sortOrder    INTEGER NOT NULL,
                 FOREIGN KEY (watchlist_id) REFERENCES watchlists(id)
                     ON DELETE CASCADE,
                 UNIQUE (watchlist_id, symbol)
             )
         ''')
+
+        # Add ordering support to watchlists created before sortOrder existed.
+        item_columns = {
+            row[1] for row in self.cursor.execute(
+                'PRAGMA table_info(watchlist_items)'
+            )
+        }
+        if 'sortOrder' not in item_columns:
+            self.cursor.execute(
+                'ALTER TABLE watchlist_items ADD COLUMN sortOrder INTEGER'
+            )
+            self.cursor.execute(
+                'UPDATE watchlist_items SET sortOrder = id WHERE sortOrder IS NULL'
+            )
 
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS settings (
@@ -82,8 +97,14 @@ class Database:
             print(
                 f"Symbol '{symbol}' already exists in watchlist ID '{watchlist_id}'.")
             return False
+        sort_order = self.cursor.execute(
+            'SELECT COALESCE(MAX(sortOrder), -1) + 1 FROM watchlist_items '
+            'WHERE watchlist_id = ?', (watchlist_id,)
+        ).fetchone()[0]
         self.cursor.execute(
-            'INSERT INTO watchlist_items (watchlist_id, symbol) VALUES (?, ?)', (watchlist_id, symbol))
+            'INSERT INTO watchlist_items (watchlist_id, symbol, sortOrder) VALUES (?, ?, ?)',
+            (watchlist_id, symbol, sort_order)
+        )
         self.conn.commit()
 
     def add_setting(self, key, value):
@@ -105,8 +126,18 @@ class Database:
 
     def get_watchlist_items(self, watchlist_id):
         self.cursor.execute(
-            'SELECT symbol FROM watchlist_items WHERE watchlist_id = ?', (watchlist_id,))
+            'SELECT symbol FROM watchlist_items WHERE watchlist_id = ? '
+            'ORDER BY sortOrder, id', (watchlist_id,))
         return [row[0] for row in self.cursor.fetchall()]
+
+    def set_watchlist_item_order(self, watchlist_id, symbols):
+        """Persist the visual TargetCard order for a watchlist."""
+        self.cursor.executemany(
+            'UPDATE watchlist_items SET sortOrder = ? '
+            'WHERE watchlist_id = ? AND symbol = ?',
+            [(index, watchlist_id, symbol) for index, symbol in enumerate(symbols)]
+        )
+        self.conn.commit()
 
     def rename_watchlist(self, watchlist_id, new_name):
         # 檢查新名稱是否已存在
