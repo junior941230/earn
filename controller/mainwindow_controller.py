@@ -3,6 +3,7 @@ from ui.mainwindow import Ui_MainWindow
 from database.database import Database
 from service.fubon_client import FubonClient
 from service.market_data import MarketDataService
+from service.websocket_manerger import WebSocketManager
 from controller.watchlist_controller import WatchlistController
 from PyQt6.QtGui import QIcon
 
@@ -16,7 +17,7 @@ class MainWindowController(QMainWindow):
         self.fubon_client = FubonClient()
         self.fubon_client.connect()
         self.market_data_service = MarketDataService(self.fubon_client)
-
+        self.websocket_manager = WebSocketManager(self.market_data_service)
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
 
@@ -26,6 +27,7 @@ class MainWindowController(QMainWindow):
             tab=self.ui.watchlistTab,
             layout=self.ui.watchlistsLayout,
             db=self.db, market_data_service=self.market_data_service,
+            websocket_manager=self.websocket_manager,
             all_market_data=self.all_market_data
         )
 

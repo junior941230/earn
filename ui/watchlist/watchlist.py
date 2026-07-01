@@ -59,14 +59,16 @@ class TargetCard(QFrame):
     }
     """
 
-    def __init__(self, data: dict, parent=None):
+    def __init__(self, data: dict, trades_callback, parent=None):
         super().__init__(parent)
         self.data = data
+        self.trades_callback = trades_callback
+        self.trades_callback.connect(self.updateWebSocketData)
+        self.previousClose = data.get('previousClose', 1)  # 避免除以零
         self._drag_start_pos = None
         self._build_ui()
         self._apply_style()
         self.setMaximumWidth(280)  # 限制卡片最大寬度，讓 UI 看起來更緊湊
-
 
     def _build_ui(self):
         self.setFixedHeight(50)
@@ -161,10 +163,21 @@ class TargetCard(QFrame):
 
     def updateWebSocketData(self, data: dict):
         """更新即時資料"""
-        self.lbl_price.setText(f"{self.data.get('closePrice', 0):.2f}")
+        symbol = self.data.get("symbol", "")
+        if data.get("symbol") != symbol:
+            return  # 如果 WebSocket 資料的 symbol 與卡片不符，直接返回
+        if "price" in data:
+            self.lbl_price.setText(f"{data.get('price', 0):.2f}")
+        else:
+            return  # 如果沒有價格資料，直接返回
 
-        change = self.data.get('change', 0)
-        change_pct = self.data.get('changePercent', 0)
+        if "change" in data and "changePercent" in data:
+            change = data.get('change', 0)
+            change_pct = data.get('changePercent', 0)
+        else:
+            change = data.get('price', 0) - self.previousClose
+            change_pct = (change / self.previousClose) * \
+                100 if self.previousClose != 0 else 0
         sign = '+' if change >= 0 else ''
         change_str = f"{sign}{change:.2f}  ({sign}{change_pct:.2f}%)"
 
@@ -197,7 +210,8 @@ class TargetCard(QFrame):
             return
 
         mime_data = QMimeData()
-        mime_data.setData("application/x-watchlist-target-card", symbol.encode())
+        mime_data.setData(
+            "application/x-watchlist-target-card", symbol.encode())
         drag = QDrag(self)
         drag.setMimeData(mime_data)
         drag.setPixmap(self.grab())
@@ -238,11 +252,11 @@ class CardContainer(QWidget):
         event.acceptProposedAction()
 
 
-
 class watchlist(QFrame):
-    def __init__(self, watchlistName, edit_callback, wl_id, reorder_callback=None, parent=None):
+    def __init__(self, watchlistName, edit_callback, trades_callback, wl_id, reorder_callback=None, parent=None):
         self.watchlistName = watchlistName
         self.edit_callback = edit_callback
+        self.trades_callback = trades_callback
         self.wl_id = wl_id
         self.reorder_callback = reorder_callback
         super().__init__(parent)
@@ -377,7 +391,7 @@ class watchlist(QFrame):
         if symbol in self._cards:
             self._cards[symbol].refresh(data)
         else:
-            card = TargetCard(data)
+            card = TargetCard(data, self.trades_callback)
             self._cards[symbol] = card
             idx = self.card_layout.count() - 1   # stretch 前插入
             self.card_layout.insertWidget(idx, card)
@@ -390,6 +404,10 @@ class watchlist(QFrame):
             self.card_layout.removeWidget(card)
             card.deleteLater()
             self._update_count()
+
+    def get_cards(self) -> list[tuple[str, TargetCard]]:
+        """取得目前所有標的卡片的資料列表"""
+        return list(self._cards.items())
 
     def clear_all(self):
         """清除全部標的"""

@@ -26,7 +26,10 @@ class MarketDataService:
         self.fubon_client = fubon_client
         self.reststock = self.fubon_client.getSDK().marketdata.rest_client.stock
         self.WebSocketStock = self.fubon_client.getSDK().marketdata.websocket_client.stock
-        self.WebSocketStock.on('message', self._handle_websocket_message)
+
+    def websocket_connect(self, on_message_callback):
+        self.WebSocketStock.on(
+            'message', on_message_callback)  # 設定 WebSocket 訊息回調函數
         self.WebSocketStock.connect()
         self._is_websocket_connected = True
 
@@ -173,9 +176,9 @@ class MarketDataService:
         request = {"channel": channel, "symbol": symbol}
         self.WebSocketStock.subscribe(request)
 
-    def WebSocketUnsubscribe(self, channel, symbol):
+    def WebSocketUnsubscribe(self, channed_id):
         # 取消訂閱 WebSocket 報價
-        request = {"channel": channel, "symbol": symbol}
+        request = {"id": channed_id}
         self.WebSocketStock.unsubscribe(request)
 
     def _print_api_error(self, error):
