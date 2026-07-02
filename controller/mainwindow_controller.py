@@ -1,5 +1,5 @@
 from PyQt6.QtWidgets import QMainWindow
-from ui.mainwindow import Ui_MainWindow
+from ui.mainwindowAddOn import MainWindowWithAddOn
 from database.database import Database
 from service.fubon_client import FubonClient
 from service.market_data import MarketDataService
@@ -18,8 +18,10 @@ class MainWindowController(QMainWindow):
         self.fubon_client.connect()
         self.market_data_service = MarketDataService(self.fubon_client)
         self.websocket_manager = WebSocketManager(self.market_data_service)
-        self.ui = Ui_MainWindow()
+        self.ui = MainWindowWithAddOn()
         self.ui.setupUi(self)
+        self.ui.addAddOn()
+        self.ui.switch.toggled.connect(self.on_switch_toggled)
 
         self.all_market_data = self.generateAllMarketData()
 
@@ -83,6 +85,12 @@ class MainWindowController(QMainWindow):
             return [market_data]
 
         return []
+
+    def on_switch_toggled(self, checked):
+        if checked:
+            self.ui.switchlabel.setText("期貨")
+        else:
+            self.ui.switchlabel.setText("現貨")
 
     def closeEvent(self, event):
         # 在視窗關閉前，確保資料庫連線被正確關閉
